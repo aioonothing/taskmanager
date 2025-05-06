@@ -26,9 +26,10 @@ public interface ProjectMapper {
     @Mapping(target = "status", constant = "PLANNED")
     @Mapping(target = "ownerUsername", ignore = true)
     @Mapping(target = "viabilitySummary", ignore = true)
-    @Mapping(target = "riskScore", ignore = true)
-    @Mapping(target = "viabilityCategory", ignore = true)
-    @Mapping(target = "isViable", ignore = true)
+    // Campos para la viabilidad con IA (no implementado)
+//    @Mapping(target = "riskScore", ignore = true)
+//    @Mapping(target = "viabilityCategory", ignore = true)
+//    @Mapping(target = "isViable", ignore = true)
 
     Project toEntity(ProjectCreateDTO dto);
 }

@@ -1,8 +1,62 @@
-*.log
+# ========================
+# Java
+# ========================
 *.class
-.idea/
-.vscode/
+*.jar
+*.war
+*.log
+*.tmp
+
+# ========================
+# Maven
+# ========================
 target/
-build/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# ========================
+# IntelliJ IDEA
+# ========================
+.idea/
 *.iml
+*.ipr
+*.iws
+out/
+
+# ========================
+# VSCode
+# ========================
+.vscode/
+
+# ========================
+# OS files
+# ========================
 .DS_Store
+Thumbs.db
+
+# ========================
+# Spring Boot / Application
+# ========================
+# ⚠️ Descomentar si tienes variables sensibles aquí
+src/main/resources/application.properties
+src/main/resources/application.yml
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+
+# ========================
+# Git
+# ========================
+.git/
+
+# ========================
+# Test Reports (si luego los generas)
+# ========================
+test-output/
+surefire-reports/
