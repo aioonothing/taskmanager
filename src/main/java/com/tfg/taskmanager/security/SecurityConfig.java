@@ -38,7 +38,15 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable()) // Deshabilita la protección contra CSRF, ya que en APIs REST esta protección no es necesaria.
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Define el sistema como "stateless" (sin sesiones).
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/").permitAll() // Permite acceso público a la raíz ("/").
+                        .requestMatchers(
+                            "/", 
+                            "/login", 
+                            "/dashboard", 
+                            "/css/**", 
+                            "/js/**", 
+                            "/images/**", 
+                            "/webjars/**"
+                        ).permitAll() // Permite acceso público sin autenticacion a estas rutas.
                         .requestMatchers("/api/auth/**").permitAll() // Permite acceso sin autenticación a los endpoints de autenticación.
                         .anyRequest().authenticated() // Todo lo demás requiere autenticación con JWT.
                 )

@@ -2,6 +2,7 @@ package com.tfg.taskmanager.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -15,23 +16,34 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Filtro de autenticación JWT que se ejecuta en cada petición HTTP.
- * Valida el token, extrae el usuario y lo establece en el contexto de seguridad.
+ * 🔐 Filtro de autenticación JWT que se ejecuta en cada petición HTTP.
+ * 
+ * Este filtro tiene la responsabilidad de:
+ * - Extraer el JWT de la cabecera `Authorization` o de una cookie segura (`JWT_TOKEN`).
+ * - Validar el token y extraer el nombre de usuario.
+ * - Configurar el contexto de seguridad con el usuario autenticado si el token es válido.
+ * 
+ * ⚠️ **Consideraciones de seguridad**:
+ * - Se admite autenticación mediante cabecera o cookie HttpOnly.
+ * - La cookie `JWT_TOKEN` debe configurarse como segura en producción (`Secure=true`).
+ * - No almacena roles directamente, permitiendo una validación externa si es necesaria.
  */
-@Slf4j // Registra eventos y errores en logs, útil para depuración.
-@Component // Permite la inyección automática en Spring Boot.
-@RequiredArgsConstructor // Genera un constructor con los atributos final (inyección de dependencias automática).
-public class JwtAuthenticationFilter extends OncePerRequestFilter { // Garantiza que el filtro se ejecute solo una vez por solicitud.
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService; // Servicio que gestiona validación y extracción de datos del JWT.
+    /** Servicio para validar y extraer información del JWT */
+    private final JwtService jwtService;
 
     /**
-     * Intercepta la solicitud HTTP y valida el token de autenticación.
-     * @param request Petición HTTP que llega al servidor.
-     * @param response Respuesta HTTP que el servidor enviará al cliente.
-     * @param filterChain Cadena de filtros que continúa el procesamiento normal.
-     * @throws ServletException Si hay un error interno en el filtro.
-     * @throws IOException Si hay un error en la comunicación HTTP.
+     * 🔹 Método principal del filtro: intercepta cada petición y valida autenticación por JWT.
+     * 
+     * @param request Petición HTTP entrante.
+     * @param response Respuesta HTTP saliente.
+     * @param filterChain Cadena de filtros de Spring Security.
+     * @throws ServletException Excepción de servlet en caso de error.
+     * @throws IOException Excepción de I/O en caso de error.
      */
     @Override
     protected void doFilterInternal(
@@ -40,43 +52,53 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // Garantiza
             FilterChain filterChain)
             throws ServletException, IOException {
 
+        // Variables para almacenar el token y el username extraído
+        String jwt = null;
+        String username = null;
+
+        // 1 Extraer JWT desde la cabecera Authorization
         final String authHeader = request.getHeader("Authorization");
 
-        // Validación inicial del header de autenticación.
-        // Un JWT válido siempre comienza con "Bearer ", seguido del token real.
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response); // Si no hay token, se permite continuar sin autenticación.
-            return;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7); // Elimina "Bearer "
+            username = jwtService.extractUsername(jwt);
         }
 
-        final String jwt = authHeader.substring(7); // Extrae solo el token eliminando "Bearer ".
-        final String username = jwtService.extractUsername(jwt); // Obtiene el nombre de usuario desde el JWT.
-
-        // Si el usuario ya está autenticado en Spring Security, no repetimos el proceso.
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-            // Validamos que el token sea legítimo.
-            if (jwtService.isTokenValid(jwt)) {
-
-                // Se crea un objeto de autenticación para establecer el usuario autenticado en el contexto de seguridad.
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                username,
-                                null, // No se usa credencial adicional porque el JWT ya verifica identidad.
-                                null  // Roles no procesados aquí, pero pueden incluirse más adelante si es necesario.
-                        );
-
-                // Asigna detalles adicionales (IP, sesión, etc.) a la autenticación.
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                // Establece la autenticación en el contexto de seguridad de Spring.
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+        // 2 Si el JWT no está en la cabecera, intentar recuperarlo desde la cookie JWT_TOKEN
+        if ((jwt == null || username == null) && request.getCookies() != null) {
+            jwt = extractTokenFromCookies(request);
+            if (jwt != null) {
+                username = jwtService.extractUsername(jwt);
             }
         }
 
-        // Continúa con la cadena de filtros para que la solicitud llegue al controlador correspondiente.
+        // 3 Validación del usuario y configuración del contexto de seguridad
+        // Se verifica que haya un username y que aún no haya autenticación activa en el contexto
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (jwtService.isTokenValid(jwt)) { // Se valida la integridad y vigencia del JWT
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(username, null, null);
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken); // Se establece el usuario autenticado
+            }
+        }
+
+        // 4 Continúa la cadena de filtros para que la solicitud alcance su destino (controladores, recursos, etc.)
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Extrae el token JWT desde la cookie `JWT_TOKEN` si existe.
+     * 
+     * @param request Petición HTTP actual que contiene las cookies del usuario.
+     * @return El valor del token JWT si la cookie está presente, `null` en caso contrario.
+     */
+    private String extractTokenFromCookies(HttpServletRequest request) {
+        for (Cookie cookie : request.getCookies()) {
+            if ("JWT_TOKEN".equals(cookie.getName())) {
+                return cookie.getValue(); // Retorna el valor del token encontrado
+            }
+        }
+        return null; // Retorna `null` si la cookie no está presente
     }
 }
